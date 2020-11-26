@@ -1,0 +1,5 @@
+*~
+*.bak
+
+/swarm
+/cmd/swarm/swarm
