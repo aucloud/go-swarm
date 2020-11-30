@@ -21,7 +21,9 @@ func TestReadClusterfile(t *testing.T) {
     "hostname": "dm1",
     "public_address": "10.0.0.1",
     "private_address": "172.16.0.1",
-    "tags": ["manager"]
+    "tags": {
+	  "role": "manager"
+	}
   }]
 }
 `
@@ -37,7 +39,9 @@ func TestReadClusterfile(t *testing.T) {
 				Hostname:       "dm1",
 				PublicAddress:  "10.0.0.1",
 				PrivateAddress: "172.16.0.1",
-				Tags:           []string{"manager"},
+				Tags: map[string]string{
+					"role": "manager",
+				},
 			},
 		},
 	}

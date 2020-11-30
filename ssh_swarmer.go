@@ -226,12 +226,12 @@ func (s *sshSwarmer) GetNodes() ([]NodeStatus, error) {
 }
 
 func (s *sshSwarmer) CreateSwarm(vms VMNodes) error {
-	managers := vms.FilterByTag("manager")
+	managers := vms.FilterByTag("role", "manager")
 	if !(len(managers) == 3 || len(managers) == 5) {
 		return fmt.Errorf("error expected 3 or 5 managers but got %d", len(managers))
 	}
 
-	workers := vms.FilterByTag("worker")
+	workers := vms.FilterByTag("role", "worker")
 
 	// Pick a random manager out of the candidates
 	randomIndex := rand.Intn(len(managers))
@@ -284,7 +284,8 @@ func (s *sshSwarmer) CreateSwarm(vms VMNodes) error {
 		if err := s.joinSwarm(newManager, manager, managerToken); err != nil {
 			return fmt.Errorf(
 				"error joining manager %s to %s on swarm clsuter %s: %w",
-				newManager.PublicAddress, manager.PublicAddress, clusterID,
+				newManager.PublicAddress, manager.PublicAddress,
+				clusterID, err,
 			)
 		}
 	}
@@ -294,7 +295,8 @@ func (s *sshSwarmer) CreateSwarm(vms VMNodes) error {
 		if err := s.joinSwarm(worker, manager, workerToken); err != nil {
 			return fmt.Errorf(
 				"error joining worker %s to %s on swarm clsuter %s: %w",
-				worker.PublicAddress, manager.PublicAddress, clusterID,
+				worker.PublicAddress, manager.PublicAddress,
+				clusterID, err,
 			)
 		}
 	}

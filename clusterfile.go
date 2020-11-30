@@ -11,19 +11,24 @@ import (
 // node's hostname, private and public ip addresses as well as a list of tags
 // used to label the nodes for different purposes such as Manager ndoes.
 type VMNode struct {
-	Hostname       string   `json:"hostname"`
-	PublicAddress  string   `json:"public_address"`
-	PrivateAddress string   `json:"private_address"`
-	Tags           []string `json:"tags"`
+	Hostname       string            `json:"hostname"`
+	PublicAddress  string            `json:"public_address"`
+	PrivateAddress string            `json:"private_address"`
+	Tags           map[string]string `json:"tags"`
+}
+
+func (vm VMNode) HasTag(name, value string) bool {
+	actual, ok := vm.Tags[name]
+	return ok && actual == value
 }
 
 type VMNodes []VMNode
 
-func (vms VMNodes) FilterByTag(tag string) VMNodes {
+func (vms VMNodes) FilterByTag(name, value string) VMNodes {
 	var res VMNodes
 
 	for _, vm := range vms {
-		if HasString(vm.Tags, tag) {
+		if vm.HasTag(name, value) {
 			res = append(res, vm)
 		}
 	}
@@ -47,7 +52,7 @@ func (cf *Clusterfile) Validate() error {
 	var managers int
 
 	for _, node := range cf.Nodes {
-		if HasString(node.Tags, "manager") {
+		if node.HasTag("role", "manager") {
 			managers++
 		}
 	}
