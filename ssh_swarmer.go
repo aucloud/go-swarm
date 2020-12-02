@@ -22,6 +22,9 @@ const (
 	initCommand  = "docker swarm init --advertise-addr=%s --listen-addr=%s"
 	joinCommand  = "docker swarm join --advertise-addr=%s --listen-addr=%s --token=%s %s:2377"
 	tokenCommand = "docker swarm join-token -q %s"
+
+	managerToken = "manager"
+	workerToken  = "worker"
 )
 
 type sshSwarmer struct {
@@ -226,12 +229,12 @@ func (s *sshSwarmer) GetNodes() ([]NodeStatus, error) {
 }
 
 func (s *sshSwarmer) CreateSwarm(vms VMNodes) error {
-	managers := vms.FilterByTag("role", "manager")
+	managers := vms.FilterByTag(RoleTag, ManagerRole)
 	if !(len(managers) == 3 || len(managers) == 5) {
 		return fmt.Errorf("error expected 3 or 5 managers but got %d", len(managers))
 	}
 
-	workers := vms.FilterByTag("role", "worker")
+	workers := vms.FilterByTag(RoleTag, WorkerRole)
 
 	// Pick a random manager out of the candidates
 	randomIndex := rand.Intn(len(managers))
@@ -264,12 +267,12 @@ func (s *sshSwarmer) CreateSwarm(vms VMNodes) error {
 	}
 	clusterID = node.Swarm.Cluster.ID
 
-	managerToken, err := s.JoinToken("manager")
+	managerToken, err := s.JoinToken(managerToken)
 	if err != nil {
 		return fmt.Errorf("error getting manager join token: %w", err)
 	}
 
-	workerToken, err := s.JoinToken("worker")
+	workerToken, err := s.JoinToken(workerToken)
 	if err != nil {
 		return fmt.Errorf("error getting worker join token: %w", err)
 	}
