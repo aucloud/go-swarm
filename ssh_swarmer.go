@@ -17,11 +17,13 @@ import (
 )
 
 const (
-	infoCommand  = "docker info --format='{{ json . }}'"
-	nodesCommand = "docker node ls --format='{{ json . }}'"
-	initCommand  = "docker swarm init --advertise-addr=%s --listen-addr=%s"
-	joinCommand  = "docker swarm join --advertise-addr=%s --listen-addr=%s --token=%s %s:2377"
-	tokenCommand = "docker swarm join-token -q %s"
+	infoCommand   = "docker info --format='{{ json . }}'"
+	nodesCommand  = "docker node ls --format='{{ json . }}'"
+	initCommand   = "docker swarm init --advertise-addr=%s --listen-addr=%s"
+	joinCommand   = "docker swarm join --advertise-addr=%s --listen-addr=%s --token=%s %s:2377"
+	tokenCommand  = "docker swarm join-token -q %s"
+	updateCommand = "docker node update %s %s"
+	labelAdd      = "--label-add %s"
 
 	managerToken = "manager"
 	workerToken  = "worker"
@@ -127,6 +129,35 @@ func (s *sshSwarmer) joinSwarm(newNode VMNode, managerNode VMNode, token string)
 	_, err := s.runCmd(cmd)
 	if err != nil {
 		return fmt.Errorf("error running join command: %w", err)
+	}
+
+	return nil
+}
+
+func (s *sshSwarmer) labelNode(node VMNode) error {
+	if err := s.SwitchNode(node.PublicAddress); err != nil {
+		return fmt.Errorf("error switching nodes to %s: %w", node.PublicAddress, err)
+	}
+
+	info, err := s.GetInfo()
+	if err != nil {
+		return fmt.Errorf("error getting node info from: %w", err)
+	}
+
+	labelOptions := []string{}
+
+	for _, label := range strings.Split(node.GetTag(LabelsTag), " ") {
+		labelOptions = append(labelOptions, fmt.Sprintf(labelAdd, label))
+	}
+
+	cmd := fmt.Sprintf(
+		updateCommand,
+		strings.Join(labelOptions, " "),
+		info.Swarm.NodeID,
+	)
+	_, err = s.runCmd(cmd)
+	if err != nil {
+		return fmt.Errorf("error running update command: %w", err)
 	}
 
 	return nil
@@ -259,6 +290,9 @@ func (s *sshSwarmer) CreateSwarm(vms VMNodes) error {
 	if _, err := s.runCmd(cmd); err != nil {
 		return fmt.Errorf("error running init command: %w", err)
 	}
+	if err := s.labelNode(manager); err != nil {
+		return fmt.Errorf("error labelling worker: %w", err)
+	}
 
 	// Refresh node and get new Swarm Clsuter ID
 	node, err = s.GetInfo()
@@ -291,6 +325,9 @@ func (s *sshSwarmer) CreateSwarm(vms VMNodes) error {
 				clusterID, err,
 			)
 		}
+		if err := s.labelNode(newManager); err != nil {
+			return fmt.Errorf("error labelling manager: %w", err)
+		}
 	}
 
 	// Join workers
@@ -301,6 +338,9 @@ func (s *sshSwarmer) CreateSwarm(vms VMNodes) error {
 				worker.PublicAddress, manager.PublicAddress,
 				clusterID, err,
 			)
+		}
+		if err := s.labelNode(worker); err != nil {
+			return fmt.Errorf("error labelling worker: %w", err)
 		}
 	}
 

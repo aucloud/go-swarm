@@ -35,6 +35,10 @@ type VMNode struct {
 	Tags           map[string]string `json:"tags"`
 }
 
+func (vm VMNode) GetTag(name string) string {
+	return vm.Tags[name]
+}
+
 func (vm VMNode) HasTag(name, value string) bool {
 	actual, ok := vm.Tags[name]
 	return ok && actual == value
