@@ -146,7 +146,13 @@ func (s *sshSwarmer) labelNode(node VMNode) error {
 
 	labelOptions := []string{}
 
-	for _, label := range strings.Split(node.GetTag(LabelsTag), " ") {
+	labels := strings.TrimSpace(node.GetTag(LabelsTag))
+	if labels == "" {
+		// No custom labels, nothing to do.
+		return nil
+	}
+
+	for _, label := range strings.Split(labels, " ") {
 		labelOptions = append(labelOptions, fmt.Sprintf(labelAdd, label))
 	}
 
