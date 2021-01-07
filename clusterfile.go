@@ -21,7 +21,8 @@ const (
 
 	// LabelsTag is the tag (Custom Attribute in vSphere)
 	// for freeform labels applied to VM(s) in the form
-	// `key1=value1 key2=value2`
+	// `key1=value1&key2=value2&key3&key4`
+	// (This uses the URL Query String format).
 	LabelsTag = "labels"
 )
 
