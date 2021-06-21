@@ -1,13 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
-	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
 	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm/internal"
 )
 
@@ -23,15 +18,6 @@ var infoCmd = &cobra.Command{
 such as the number of worker nodes, manager nodes and cluster size.`,
 	Args: cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		user := viper.GetString("ssh-user")
-		addr := viper.GetString("ssh-addr")
-		key := viper.GetString("ssh-key")
-		swarmer, err := swarm.NewSSHSwarmer(user, addr, key)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error creating swarmer: %s\n", err)
-			os.Exit(-1)
-		}
-
 		internal.Info(swarmer, args)
 	},
 }

@@ -10,10 +10,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
 	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm/internal"
 )
 
-var configFile string
+var (
+	config  string
+	swarmer swarm.Swarmer
+)
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -33,11 +37,27 @@ Supported functions include:
 - Removing nodes
 - Displaying cluster information`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		var err error
+
 		// set logging level
 		if viper.GetBool("debug") {
 			log.SetLevel(log.DebugLevel)
 		} else {
 			log.SetLevel(log.InfoLevel)
+		}
+
+		if viper.GetBool("use-local") {
+			swarmer, _ = swarm.NewLocalSwarmer()
+		} else {
+			user := viper.GetString("ssh-user")
+			addr := viper.GetString("ssh-addr")
+			key := viper.GetString("ssh-key")
+
+			swarmer, err = swarm.NewSSHSwarmer(user, addr, key)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error creating swarmer: %s\n", err)
+				os.Exit(-1)
+			}
 		}
 	},
 }
@@ -56,13 +76,18 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(
-		&configFile, "config", "",
+		&config, "config", "",
 		"config file (default is $HOME/.swarm.yaml)",
 	)
 
 	RootCmd.PersistentFlags().BoolP(
 		"debug", "D", false,
 		"Enable debug logging",
+	)
+
+	RootCmd.PersistentFlags().BoolP(
+		"use-local", "L", false,
+		"Use local socket (connects directly to Docker UNIX socket)",
 	)
 
 	RootCmd.PersistentFlags().StringP(
@@ -80,6 +105,14 @@ func init() {
 		"SSH User to use for remote execution",
 	)
 
+	RootCmd.PersistentFlags().StringP(
+		"sock-path", "S", "/var/run/docker.sock",
+		"Path to Docker UNIX Socket",
+	)
+
+	viper.BindPFlag("use-local", RootCmd.PersistentFlags().Lookup("use-local"))
+	viper.SetDefault("use-local", false)
+
 	viper.BindPFlag("ssh-addr", RootCmd.PersistentFlags().Lookup("ssh-addr"))
 
 	viper.BindPFlag("ssh-key", RootCmd.PersistentFlags().Lookup("ssh-key"))
@@ -88,15 +121,18 @@ func init() {
 	viper.BindPFlag("ssh-user", RootCmd.PersistentFlags().Lookup("ssh-user"))
 	viper.SetDefault("ssh-user", internal.DefaultSSHUser)
 
+	viper.BindPFlag("sock-path", RootCmd.PersistentFlags().Lookup("sock-path"))
+	viper.SetDefault("sock-path", internal.DefaultSockPath)
+
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
 	viper.SetDefault("debug", false)
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	if configFile != "" {
+	if config != "" {
 		// Use config file from the flag.
-		viper.SetConfigFile(configFile)
+		viper.SetConfigFile(config)
 	} else {
 		// Find home directory.
 		home, err := homedir.Dir()
