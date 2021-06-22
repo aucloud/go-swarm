@@ -16,18 +16,52 @@ import (
 	"gitlab.mgt.aom.australiacloud.com.au/aom/golib/runcmd"
 )
 
-type baseSwarmer struct {
-	runner runcmd.Runner
+const (
+	infoCommand   = `docker info --format "{{ json . }}"`
+	nodesCommand  = `docker node ls --format "{{ json . }}"`
+	initCommand   = `docker swarm init --advertise-addr "%s" --listen-addr "%s"`
+	joinCommand   = `docker swarm join --advertise-addr "%s" --listen-addr "%s" --token "%s" "%s:2377"`
+	tokenCommand  = `docker swarm join-token -q "%s"`
+	updateCommand = `docker node update "%s" "%s"`
+	labelAdd      = `--label-add %s`
+
+	managerToken = "manager"
+	workerToken  = "worker"
+)
+
+// Manager manages all operations of a Docker Swarm cluster with flexible
+// Switcher implementations that permit talking to Docker Nodes over different
+// types of transport (e.g: local or remote).
+type Manager struct {
+	switcher Switcher
 }
 
-func (s *baseSwarmer) runCmd(cmd string, args ...string) (io.Reader, error) {
-	if s.runner == nil {
+// NewManager constructs a new Manager type with the provider Switcher
+func NewManager(switcher Switcher) (*Manager, error) {
+	return &Manager{switcher: switcher}, nil
+}
+
+func (m *Manager) getRunner() runcmd.Runner {
+	return m.switcher.Runner()
+}
+
+func (m *Manager) switchNode(nodeAddr string) error {
+	if err := m.switcher.Switch(nodeAddr); err != nil {
+		log.WithError(err).Errorf("error switching to node %s", nodeAddr)
+		return fmt.Errorf("error switching to node %s: %s", nodeAddr, err)
+	}
+
+	return nil
+}
+
+func (m *Manager) runCmd(cmd string, args ...string) (io.Reader, error) {
+	if m.getRunner() == nil {
 		return nil, fmt.Errorf("error no runner configured")
 	}
 
-	log.WithField("args", args).Debugf("running cmd on %s: %s", s.String(), cmd)
+	log.WithField("args", args).Debugf("running cmd on %s: %s", m.switcher.String(), cmd)
 
-	worker, err := s.runner.Command(cmd)
+	worker, err := m.getRunner().Command(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
@@ -48,8 +82,8 @@ func (s *baseSwarmer) runCmd(cmd string, args ...string) (io.Reader, error) {
 	return buf, nil
 }
 
-func (s *baseSwarmer) ensureManager() error {
-	node, err := s.GetInfo()
+func (m *Manager) ensureManager() error {
+	node, err := m.GetInfo()
 	if err != nil {
 		return fmt.Errorf("error getting node info: %w", err)
 	}
@@ -60,7 +94,7 @@ func (s *baseSwarmer) ensureManager() error {
 				log.WithError(err).Warn("error parsing remote manager address (trying next manager): %w", err)
 				continue
 			}
-			if err := s.SwitchNode(host); err != nil {
+			if err := m.switchNode(host); err != nil {
 				log.WithError(err).Warn("error switch to remote manager (trying next manager): %w", err)
 				continue
 			}
@@ -72,8 +106,8 @@ func (s *baseSwarmer) ensureManager() error {
 	return nil
 }
 
-func (s *baseSwarmer) joinSwarm(newNode VMNode, managerNode VMNode, token string) error {
-	if err := s.SwitchNode(newNode.PublicAddress); err != nil {
+func (m *Manager) joinSwarm(newNode VMNode, managerNode VMNode, token string) error {
+	if err := m.switchNode(newNode.PublicAddress); err != nil {
 		return fmt.Errorf("error switching nodes to %s: %w", newNode.PublicAddress, err)
 	}
 
@@ -84,7 +118,7 @@ func (s *baseSwarmer) joinSwarm(newNode VMNode, managerNode VMNode, token string
 		token,
 		managerNode.PrivateAddress,
 	)
-	_, err := s.runCmd(cmd)
+	_, err := m.runCmd(cmd)
 	if err != nil {
 		return fmt.Errorf("error running join command: %w", err)
 	}
@@ -92,12 +126,12 @@ func (s *baseSwarmer) joinSwarm(newNode VMNode, managerNode VMNode, token string
 	return nil
 }
 
-func (s *baseSwarmer) labelNode(node VMNode) error {
-	if err := s.SwitchNode(node.PublicAddress); err != nil {
+func (m *Manager) labelNode(node VMNode) error {
+	if err := m.switchNode(node.PublicAddress); err != nil {
 		return fmt.Errorf("error switching nodes to %s: %w", node.PublicAddress, err)
 	}
 
-	info, err := s.GetInfo()
+	info, err := m.GetInfo()
 	if err != nil {
 		return fmt.Errorf("error getting node info from: %w", err)
 	}
@@ -128,7 +162,7 @@ func (s *baseSwarmer) labelNode(node VMNode) error {
 		strings.Join(labelOptions, " "),
 		info.Swarm.NodeID,
 	)
-	_, err = s.runCmd(cmd)
+	_, err = m.runCmd(cmd)
 	if err != nil {
 		return fmt.Errorf("error running update command: %w", err)
 	}
@@ -136,19 +170,11 @@ func (s *baseSwarmer) labelNode(node VMNode) error {
 	return nil
 }
 
-func (s *baseSwarmer) String() string {
-	return ""
-}
-
-func (s *baseSwarmer) SwitchNode(host string) error {
-	return fmt.Errorf("error SwitchNode() not implemented on %v", s)
-}
-
-func (s *baseSwarmer) GetInfo() (NodeInfo, error) {
+func (m *Manager) GetInfo() (NodeInfo, error) {
 	var node NodeInfo
 
 	cmd := infoCommand
-	stdout, err := s.runCmd(cmd)
+	stdout, err := m.runCmd(cmd)
 	if err != nil {
 		return NodeInfo{}, fmt.Errorf("error running info command: %w", err)
 	}
@@ -165,8 +191,8 @@ func (s *baseSwarmer) GetInfo() (NodeInfo, error) {
 	return node, nil
 }
 
-func (s *baseSwarmer) GetManagers() ([]NodeInfo, error) {
-	node, err := s.GetInfo()
+func (m *Manager) GetManagers() ([]NodeInfo, error) {
+	node, err := m.GetInfo()
 	if err != nil {
 		return nil, fmt.Errorf("error getting node info: %w", err)
 	}
@@ -177,10 +203,10 @@ func (s *baseSwarmer) GetManagers() ([]NodeInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error parsing remote manager address: %w", err)
 		}
-		if err := s.SwitchNode(host); err != nil {
+		if err := m.switchNode(host); err != nil {
 			return nil, fmt.Errorf("error switching nodes to %s: %w", host, err)
 		}
-		node, err := s.GetInfo()
+		node, err := m.GetInfo()
 		if err != nil {
 			return nil, fmt.Errorf("error getting manager node info: %w", err)
 		}
@@ -190,13 +216,13 @@ func (s *baseSwarmer) GetManagers() ([]NodeInfo, error) {
 	return managers, nil
 }
 
-func (s *baseSwarmer) GetNodes() ([]NodeStatus, error) {
-	if err := s.ensureManager(); err != nil {
+func (m *Manager) GetNodes() ([]NodeStatus, error) {
+	if err := m.ensureManager(); err != nil {
 		return nil, fmt.Errorf("error connecting to manager node: %w", err)
 	}
 
 	cmd := nodesCommand
-	stdout, err := s.runCmd(cmd)
+	stdout, err := m.runCmd(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("error running nodes command: %w", err)
 	}
@@ -210,7 +236,7 @@ func (s *baseSwarmer) GetNodes() ([]NodeStatus, error) {
 	return nodes, nil
 }
 
-func (s *baseSwarmer) CreateSwarm(vms VMNodes) error {
+func (m *Manager) CreateSwarm(vms VMNodes) error {
 	managers := vms.FilterByTag(RoleTag, ManagerRole)
 	if !(len(managers) == 3 || len(managers) == 5) {
 		return fmt.Errorf("error expected 3 or 5 managers but got %d", len(managers))
@@ -222,11 +248,11 @@ func (s *baseSwarmer) CreateSwarm(vms VMNodes) error {
 	randomIndex := rand.Intn(len(managers))
 	manager := managers[randomIndex]
 
-	if err := s.SwitchNode(manager.PublicAddress); err != nil {
+	if err := m.switchNode(manager.PublicAddress); err != nil {
 		return fmt.Errorf("error switching to a manager node: %w", err)
 	}
 
-	node, err := s.GetInfo()
+	node, err := m.GetInfo()
 	if err != nil {
 		return fmt.Errorf("error getting node info: %w", err)
 	}
@@ -238,26 +264,26 @@ func (s *baseSwarmer) CreateSwarm(vms VMNodes) error {
 	}
 
 	cmd := fmt.Sprintf(initCommand, manager.PrivateAddress, manager.PrivateAddress)
-	if _, err := s.runCmd(cmd); err != nil {
+	if _, err := m.runCmd(cmd); err != nil {
 		return fmt.Errorf("error running init command: %w", err)
 	}
-	if err := s.labelNode(manager); err != nil {
+	if err := m.labelNode(manager); err != nil {
 		return fmt.Errorf("error labelling worker: %w", err)
 	}
 
 	// Refresh node and get new Swarm Clsuter ID
-	node, err = s.GetInfo()
+	node, err = m.GetInfo()
 	if err != nil {
 		return fmt.Errorf("error refreshing node info: %w", err)
 	}
 	clusterID = node.Swarm.Cluster.ID
 
-	managerToken, err := s.JoinToken(managerToken)
+	managerToken, err := m.JoinToken(managerToken)
 	if err != nil {
 		return fmt.Errorf("error getting manager join token: %w", err)
 	}
 
-	workerToken, err := s.JoinToken(workerToken)
+	workerToken, err := m.JoinToken(workerToken)
 	if err != nil {
 		return fmt.Errorf("error getting worker join token: %w", err)
 	}
@@ -269,42 +295,42 @@ func (s *baseSwarmer) CreateSwarm(vms VMNodes) error {
 			continue
 		}
 
-		if err := s.joinSwarm(newManager, manager, managerToken); err != nil {
+		if err := m.joinSwarm(newManager, manager, managerToken); err != nil {
 			return fmt.Errorf(
 				"error joining manager %s to %s on swarm clsuter %s: %w",
 				newManager.PublicAddress, manager.PublicAddress,
 				clusterID, err,
 			)
 		}
-		if err := s.labelNode(newManager); err != nil {
+		if err := m.labelNode(newManager); err != nil {
 			return fmt.Errorf("error labelling manager: %w", err)
 		}
 	}
 
 	// Join workers
 	for _, worker := range workers {
-		if err := s.joinSwarm(worker, manager, workerToken); err != nil {
+		if err := m.joinSwarm(worker, manager, workerToken); err != nil {
 			return fmt.Errorf(
 				"error joining worker %s to %s on swarm clsuter %s: %w",
 				worker.PublicAddress, manager.PublicAddress,
 				clusterID, err,
 			)
 		}
-		if err := s.labelNode(worker); err != nil {
+		if err := m.labelNode(worker); err != nil {
 			return fmt.Errorf("error labelling worker: %w", err)
 		}
 	}
 
-	if err := s.SwitchNode(manager.PublicAddress); err != nil {
+	if err := m.switchNode(manager.PublicAddress); err != nil {
 		return fmt.Errorf("error switching to manager node: %w", err)
 	}
 
 	return nil
 }
 
-func (s *baseSwarmer) JoinToken(tokenType string) (string, error) {
+func (m *Manager) JoinToken(tokenType string) (string, error) {
 	cmd := fmt.Sprintf(tokenCommand, tokenType)
-	stdout, err := s.runCmd(cmd)
+	stdout, err := m.runCmd(cmd)
 	if err != nil {
 		return "", fmt.Errorf("error running token command: %w", err)
 	}

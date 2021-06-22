@@ -18,6 +18,6 @@ var infoCmd = &cobra.Command{
 such as the number of worker nodes, manager nodes and cluster size.`,
 	Args: cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		internal.Info(swarmer, args)
+		internal.Info(manager, args)
 	},
 }

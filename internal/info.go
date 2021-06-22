@@ -7,14 +7,14 @@ import (
 	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
 )
 
-func Info(swarmer swarm.Swarmer, args []string) int {
-	node, err := swarmer.GetInfo()
+func Info(m *swarm.Manager, args []string) int {
+	node, err := m.GetInfo()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error getting node info: %s\n", err)
 		return StatusError
 	}
 
-	managers, err := swarmer.GetManagers()
+	managers, err := m.GetManagers()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error getting managers: %s\n", err)
 		return StatusError

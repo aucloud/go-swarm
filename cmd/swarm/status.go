@@ -19,7 +19,6 @@ status of all nodes participating int he warm including which ndoes are mangers,
 workers and who the current leader is.`,
 	Args: cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-
-		internal.Status(swarmer, args)
+		internal.Status(manager, args)
 	},
 }

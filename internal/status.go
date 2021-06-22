@@ -7,8 +7,8 @@ import (
 	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
 )
 
-func Status(swarmer swarm.Swarmer, args []string) int {
-	nodes, err := swarmer.GetNodes()
+func Status(m *swarm.Manager, args []string) int {
+	nodes, err := m.GetNodes()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error getting nodes: %s\n", err)
 		return StatusError

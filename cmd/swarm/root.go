@@ -16,7 +16,7 @@ import (
 
 var (
 	config  string
-	swarmer swarm.Swarmer
+	manager *swarm.Manager
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -46,18 +46,41 @@ Supported functions include:
 			log.SetLevel(log.InfoLevel)
 		}
 
+		var switcher swarm.Switcher
+
 		if viper.GetBool("use-local") {
-			swarmer, _ = swarm.NewLocalSwarmer()
+			localSwitcher, err := swarm.NewLocalSwitcher()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error creating local switcher: %s\n", err)
+				os.Exit(-1)
+			}
+			if localSwitcher.Switch(""); err != nil {
+				fmt.Fprintf(os.Stderr, "error switching to local node: %s\n", err)
+				os.Exit(-1)
+			}
+
+			switcher = localSwitcher
 		} else {
 			user := viper.GetString("ssh-user")
 			addr := viper.GetString("ssh-addr")
 			key := viper.GetString("ssh-key")
 
-			swarmer, err = swarm.NewSSHSwarmer(user, addr, key)
+			sshSwitcher, err := swarm.NewSSHSwitcher(user, addr, key)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error creating swarmer: %s\n", err)
+				fmt.Fprintf(os.Stderr, "error creating ssh switcher: %s\n", err)
 				os.Exit(-1)
 			}
+			if sshSwitcher.Switch(addr); err != nil {
+				fmt.Fprintf(os.Stderr, "error switching to remote node %s: %s\n", addr, err)
+				os.Exit(-1)
+			}
+
+			switcher = sshSwitcher
+		}
+
+		if manager, err = swarm.NewManager(switcher); err != nil {
+			fmt.Fprintf(os.Stderr, "error creating manager: %s\n", err)
+			os.Exit(-1)
 		}
 	},
 }

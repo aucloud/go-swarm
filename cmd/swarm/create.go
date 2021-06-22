@@ -21,6 +21,6 @@ along with their public and private ip address. Each node must also have a set
 of labels that are used to assign nodes as managers and others as workers.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		internal.Create(swarmer, args)
+		internal.Create(manager, args)
 	},
 }
