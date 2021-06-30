@@ -41,14 +41,17 @@ func NewManager(switcher Switcher) (*Manager, error) {
 	return &Manager{switcher: switcher}, nil
 }
 
+// Switcher returns the current Switcher for the manager being used
 func (m *Manager) Switcher() Switcher {
 	return m.switcher
 }
 
+// Runner returns the current Runner for the current Switcher being used
 func (m *Manager) Runner() runcmd.Runner {
 	return m.Switcher().Runner()
 }
 
+// SwitchNode switches to a new node given by nodeAddr to perform operations on
 func (m *Manager) SwitchNode(nodeAddr string) error {
 	if err := m.Switcher().Switch(nodeAddr); err != nil {
 		log.WithError(err).Errorf("error switching to node %s", nodeAddr)
@@ -179,6 +182,7 @@ func (m *Manager) labelNode(node VMNode) error {
 	return nil
 }
 
+// GetInfo returns information about the current node
 func (m *Manager) GetInfo() (NodeInfo, error) {
 	var node NodeInfo
 
@@ -200,6 +204,7 @@ func (m *Manager) GetInfo() (NodeInfo, error) {
 	return node, nil
 }
 
+// GetManagers returns a list of manager nodes and their information
 func (m *Manager) GetManagers() ([]NodeInfo, error) {
 	node, err := m.GetInfo()
 	if err != nil {
@@ -225,6 +230,7 @@ func (m *Manager) GetManagers() ([]NodeInfo, error) {
 	return managers, nil
 }
 
+// GetNodes returns all nodes in the cluster
 func (m *Manager) GetNodes() ([]NodeStatus, error) {
 	if err := m.ensureManager(); err != nil {
 		return nil, fmt.Errorf("error connecting to manager node: %w", err)
@@ -245,6 +251,7 @@ func (m *Manager) GetNodes() ([]NodeStatus, error) {
 	return nodes, nil
 }
 
+// CreateSwarm creates a new Docker Swarm cluster given a set of nodes
 func (m *Manager) CreateSwarm(vms VMNodes) error {
 	managers := vms.FilterByTag(RoleTag, ManagerRole)
 	if !(len(managers) == 3 || len(managers) == 5) {
@@ -337,6 +344,101 @@ func (m *Manager) CreateSwarm(vms VMNodes) error {
 	return nil
 }
 
+// UpdateSwarm updates an existing Docker Swarm cluster by adding any
+// missing manager or worker nodes that aren't already part of the cluster
+func (m *Manager) UpdateSwarm(vms VMNodes) error {
+	currentNodes := make(map[string]bool)
+
+	nodes, err := m.GetNodes()
+	if err != nil {
+		return fmt.Errorf("error getting current nodes: %w", err)
+	}
+	for _, node := range nodes {
+		currentNodes[node.Hostname] = true
+	}
+
+	var newNodes VMNodes
+
+	for _, vm := range vms {
+		if _, ok := currentNodes[vm.Hostname]; !ok {
+			newNodes = append(newNodes, vm)
+		}
+	}
+
+	managers := vms.FilterByTag(RoleTag, ManagerRole)
+	if !(len(managers) == 3 || len(managers) == 5) {
+		return fmt.Errorf("error expected 3 or 5 managers but got %d", len(managers))
+	}
+
+	// Pick a random manager out of the candidates
+	randomIndex := rand.Intn(len(managers))
+	manager := managers[randomIndex]
+
+	newWorkers := newNodes.FilterByTag(RoleTag, WorkerRole)
+	newManagers := newNodes.FilterByTag(RoleTag, ManagerRole)
+
+	if err := m.ensureManager(); err != nil {
+		return fmt.Errorf("error connecting to manager node: %w", err)
+	}
+
+	node, err := m.GetInfo()
+	if err != nil {
+		return fmt.Errorf("error getting node info: %w", err)
+	}
+
+	clusterID := node.Swarm.Cluster.ID
+
+	if clusterID == "" {
+		return fmt.Errorf("error no swarm cluster found")
+	}
+
+	managerToken, err := m.JoinToken(managerToken)
+	if err != nil {
+		return fmt.Errorf("error getting manager join token: %w", err)
+	}
+
+	workerToken, err := m.JoinToken(workerToken)
+	if err != nil {
+		return fmt.Errorf("error getting worker join token: %w", err)
+	}
+
+	// Join new managers
+	for _, newManager := range newManagers {
+		if err := m.joinSwarm(newManager, manager, managerToken); err != nil {
+			return fmt.Errorf(
+				"error joining manager %s to %s on swarm clsuter %s: %w",
+				newManager.PublicAddress, manager.PublicAddress,
+				clusterID, err,
+			)
+		}
+		if err := m.labelNode(newManager); err != nil {
+			return fmt.Errorf("error labelling manager: %w", err)
+		}
+	}
+
+	// Join new workers
+	for _, newWorker := range newWorkers {
+		if err := m.joinSwarm(newWorker, manager, workerToken); err != nil {
+			return fmt.Errorf(
+				"error joining worker %s to %s on swarm clsuter %s: %w",
+				newWorker.PublicAddress, manager.PublicAddress,
+				clusterID, err,
+			)
+		}
+		if err := m.labelNode(newWorker); err != nil {
+			return fmt.Errorf("error labelling worker: %w", err)
+		}
+	}
+
+	if err := m.SwitchNode(manager.PublicAddress); err != nil {
+		return fmt.Errorf("error switching to manager node: %w", err)
+	}
+
+	return nil
+}
+
+// JoinToken retrieves the current join token for the given type
+// "manager" or "worker" from any of the managers in the cluster
 func (m *Manager) JoinToken(tokenType string) (string, error) {
 	cmd := fmt.Sprintf(tokenCommand, tokenType)
 	stdout, err := m.runCmd(cmd)
