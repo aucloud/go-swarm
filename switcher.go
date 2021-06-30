@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"gitlab.mgt.aom.australiacloud.com.au/aom/golib/runcmd"
@@ -26,6 +27,7 @@ func (s *nullSwitcher) Switch(addr string) error { return nil }
 func (s *nullSwitcher) Runner() runcmd.Runner    { return nil }
 
 type localSwitcher struct {
+	sync.RWMutex
 	runner runcmd.Runner
 }
 
@@ -39,7 +41,11 @@ func (s *localSwitcher) String() string {
 	return "local://"
 }
 
-func (s *localSwitcher) Runner() runcmd.Runner { return s.runner }
+func (s *localSwitcher) Runner() runcmd.Runner {
+	s.RLock()
+	defer s.RUnlock()
+	return s.runner
+}
 
 func (s *localSwitcher) Switch(host string) error {
 	runner, err := runcmd.NewLocalRunner()
@@ -48,12 +54,15 @@ func (s *localSwitcher) Switch(host string) error {
 		return fmt.Errorf("error creating local runner: %w", err)
 	}
 
+	s.Lock()
 	s.runner = runner
+	s.Unlock()
 
 	return nil
 }
 
 type sshSwitcher struct {
+	sync.RWMutex
 	runner runcmd.Runner
 
 	user string
@@ -85,7 +94,11 @@ func (s *sshSwitcher) String() string {
 	return fmt.Sprintf("ssh://%s@%s", s.user, s.addr)
 }
 
-func (s *sshSwitcher) Runner() runcmd.Runner { return s.runner }
+func (s *sshSwitcher) Runner() runcmd.Runner {
+	s.RLock()
+	defer s.RUnlock()
+	return s.runner
+}
 
 func (s *sshSwitcher) Switch(nodeAddr string) error {
 	_, port, err := net.SplitHostPort(s.addr)
@@ -107,8 +120,10 @@ func (s *sshSwitcher) Switch(nodeAddr string) error {
 		return fmt.Errorf("error creating remote runner: %w", err)
 	}
 
+	s.Lock()
 	s.addr = addr
 	s.runner = runner
+	s.Unlock()
 
 	return nil
 }

@@ -41,12 +41,16 @@ func NewManager(switcher Switcher) (*Manager, error) {
 	return &Manager{switcher: switcher}, nil
 }
 
-func (m *Manager) getRunner() runcmd.Runner {
-	return m.switcher.Runner()
+func (m *Manager) Switcher() Switcher {
+	return m.switcher
 }
 
-func (m *Manager) switchNode(nodeAddr string) error {
-	if err := m.switcher.Switch(nodeAddr); err != nil {
+func (m *Manager) Runner() runcmd.Runner {
+	return m.Switcher().Runner()
+}
+
+func (m *Manager) SwitchNode(nodeAddr string) error {
+	if err := m.Switcher().Switch(nodeAddr); err != nil {
 		log.WithError(err).Errorf("error switching to node %s", nodeAddr)
 		return fmt.Errorf("error switching to node %s: %s", nodeAddr, err)
 	}
@@ -55,31 +59,36 @@ func (m *Manager) switchNode(nodeAddr string) error {
 }
 
 func (m *Manager) runCmd(cmd string, args ...string) (io.Reader, error) {
-	if m.getRunner() == nil {
+	if m.Runner() == nil {
 		return nil, fmt.Errorf("error no runner configured")
 	}
 
 	log.WithField("args", args).Debugf("running cmd on %s: %s", m.switcher.String(), cmd)
 
-	worker, err := m.getRunner().Command(cmd)
+	worker, err := m.Runner().Command(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
-	buf := &bytes.Buffer{}
-	worker.SetStdout(buf)
-	worker.SetStderr(buf)
+	stdout := &bytes.Buffer{}
+	worker.SetStdout(stdout)
+
+	stderr := &bytes.Buffer{}
+	worker.SetStderr(stderr)
 
 	if err := worker.Start(); err != nil {
 		return nil, fmt.Errorf("error starting worker: %w", err)
 	}
 
 	if err := worker.Wait(); err != nil {
-		log.WithError(err).WithField("out", buf.String()).Error("error running worker")
+		log.WithError(err).
+			WithField("stdout", string(stdout.String())).
+			WithField("stderr", string(stderr.String())).
+			Error("error running worker")
 		return nil, fmt.Errorf("error running worker: %s", err)
 	}
 
-	return buf, nil
+	return stdout, nil
 }
 
 func (m *Manager) ensureManager() error {
@@ -94,7 +103,7 @@ func (m *Manager) ensureManager() error {
 				log.WithError(err).Warn("error parsing remote manager address (trying next manager): %w", err)
 				continue
 			}
-			if err := m.switchNode(host); err != nil {
+			if err := m.SwitchNode(host); err != nil {
 				log.WithError(err).Warn("error switch to remote manager (trying next manager): %w", err)
 				continue
 			}
@@ -107,7 +116,7 @@ func (m *Manager) ensureManager() error {
 }
 
 func (m *Manager) joinSwarm(newNode VMNode, managerNode VMNode, token string) error {
-	if err := m.switchNode(newNode.PublicAddress); err != nil {
+	if err := m.SwitchNode(newNode.PublicAddress); err != nil {
 		return fmt.Errorf("error switching nodes to %s: %w", newNode.PublicAddress, err)
 	}
 
@@ -127,7 +136,7 @@ func (m *Manager) joinSwarm(newNode VMNode, managerNode VMNode, token string) er
 }
 
 func (m *Manager) labelNode(node VMNode) error {
-	if err := m.switchNode(node.PublicAddress); err != nil {
+	if err := m.SwitchNode(node.PublicAddress); err != nil {
 		return fmt.Errorf("error switching nodes to %s: %w", node.PublicAddress, err)
 	}
 
@@ -174,12 +183,12 @@ func (m *Manager) GetInfo() (NodeInfo, error) {
 	var node NodeInfo
 
 	cmd := infoCommand
-	stdout, err := m.runCmd(cmd)
+	out, err := m.runCmd(cmd)
 	if err != nil {
 		return NodeInfo{}, fmt.Errorf("error running info command: %w", err)
 	}
 
-	data, err := ioutil.ReadAll(stdout)
+	data, err := ioutil.ReadAll(out)
 	if err != nil {
 		return NodeInfo{}, fmt.Errorf("error reading info command output: %w", err)
 	}
@@ -203,7 +212,7 @@ func (m *Manager) GetManagers() ([]NodeInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error parsing remote manager address: %w", err)
 		}
-		if err := m.switchNode(host); err != nil {
+		if err := m.SwitchNode(host); err != nil {
 			return nil, fmt.Errorf("error switching nodes to %s: %w", host, err)
 		}
 		node, err := m.GetInfo()
@@ -248,7 +257,7 @@ func (m *Manager) CreateSwarm(vms VMNodes) error {
 	randomIndex := rand.Intn(len(managers))
 	manager := managers[randomIndex]
 
-	if err := m.switchNode(manager.PublicAddress); err != nil {
+	if err := m.SwitchNode(manager.PublicAddress); err != nil {
 		return fmt.Errorf("error switching to a manager node: %w", err)
 	}
 
@@ -321,7 +330,7 @@ func (m *Manager) CreateSwarm(vms VMNodes) error {
 		}
 	}
 
-	if err := m.switchNode(manager.PublicAddress); err != nil {
+	if err := m.SwitchNode(manager.PublicAddress); err != nil {
 		return fmt.Errorf("error switching to manager node: %w", err)
 	}
 
