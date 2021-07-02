@@ -2,6 +2,7 @@ package swarm
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/prologic/jsonlines"
 	log "github.com/sirupsen/logrus"
@@ -17,16 +19,22 @@ import (
 )
 
 const (
-	infoCommand   = `docker info --format "{{ json . }}"`
-	nodesCommand  = `docker node ls --format "{{ json . }}"`
-	initCommand   = `docker swarm init --advertise-addr "%s" --listen-addr "%s"`
-	joinCommand   = `docker swarm join --advertise-addr "%s" --listen-addr "%s" --token "%s" "%s:2377"`
-	tokenCommand  = `docker swarm join-token -q "%s"`
-	updateCommand = `docker node update "%s" "%s"`
-	labelAdd      = `--label-add %s`
+	infoCommand        = `docker info --format "{{ json . }}"`
+	nodesCommand       = `docker node ls --format "{{ json . }}"`
+	tasksCommand       = `docker node ps --format "{{ json .}}" %s`
+	initCommand        = `docker swarm init --advertise-addr %s --listen-addr %s`
+	joinCommand        = `docker swarm join --advertise-addr %s --listen-addr %s --token %s %s:2377`
+	tokenCommand       = `docker swarm join-token -q %s`
+	updateCommand      = `docker node update %s %s`
+	setAvailability    = `--availability %s`
+	labelAdd           = `--label-add %s`
+	availabilityDrain  = `drain`
+	availabilityActive = `active`
 
 	managerToken = "manager"
 	workerToken  = "worker"
+
+	drainTimeout = time.Minute * 10 // 10 minutes
 )
 
 // Manager manages all operations of a Docker Swarm cluster with flexible
@@ -432,6 +440,81 @@ func (m *Manager) UpdateSwarm(vms VMNodes) error {
 
 	if err := m.SwitchNode(manager.PublicAddress); err != nil {
 		return fmt.Errorf("error switching to manager node: %w", err)
+	}
+
+	return nil
+}
+
+func (m *Manager) getTasks(node string) (Tasks, error) {
+	cmd := fmt.Sprintf(tasksCommand, node)
+	stdout, err := m.runCmd(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("error running tasks command: %w", err)
+	}
+
+	var tasks Tasks
+
+	if err := jsonlines.Decode(stdout, &tasks); err != nil {
+		return nil, fmt.Errorf("error parsing json data: %s", err)
+	}
+
+	return tasks, nil
+}
+
+func (m *Manager) drainNode(node string) error {
+	startedAt := time.Now()
+
+	cmd := fmt.Sprintf(updateCommand, fmt.Sprintf(setAvailability, availabilityDrain), node)
+	_, err := m.runCmd(cmd)
+	if err != nil {
+		return fmt.Errorf("error running update command: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(time.Second * 5)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			elapsed := time.Now().Sub(startedAt)
+
+			tasks, err := m.getTasks(node)
+			if err != nil {
+				log.WithError(err).Warnf("error getting tasks from node %s (retrying)", node)
+				continue
+			}
+
+			if tasks.AllShutdown() {
+				log.Infof("Successfully drained %s after %s", node, elapsed)
+				return nil
+			}
+
+			log.Infof("Still waiting for %s to drain after %s ...", node, elapsed)
+		case <-ctx.Done():
+			elapsed := time.Now().Sub(startedAt)
+			log.Errorf("timed out waiting for %s to drain after %s", node, elapsed)
+			return fmt.Errorf("error timed out waiting for %s to drain after %s", node, elapsed)
+		}
+	}
+
+	// Unreachable
+}
+
+// DrainNodes drains one or more nodes from an existing Docker Swarm cluster
+// and blocks until there are no more tasks running on thoese nodes.
+func (m *Manager) DrainNodes(nodes []string) error {
+	if err := m.ensureManager(); err != nil {
+		return fmt.Errorf("error connecting to manager node: %w", err)
+	}
+
+	for _, node := range nodes {
+		if err := m.drainNode(node); err != nil {
+			log.WithError(err).Errorf("error draining node: %s", node)
+			return fmt.Errorf("error draining node %s: %w", node, err)
+		}
 	}
 
 	return nil

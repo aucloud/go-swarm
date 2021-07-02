@@ -1,5 +1,9 @@
 package swarm
 
+import (
+	"strings"
+)
+
 type ClusterInfo struct {
 	ID        string
 	CreatedAt string
@@ -55,3 +59,29 @@ type NodeStatus struct {
 }
 
 type Nodes []NodeStatus
+
+type TaskStatus struct {
+	ID           string
+	Name         string
+	Image        string
+	Error        string
+	Node         string
+	Ports        string
+	CurrentState string
+	DesiredState string
+}
+
+func (t TaskStatus) Shutdown() bool {
+	return strings.HasPrefix(strings.ToLower(t.CurrentState), "shutdown")
+}
+
+type Tasks []TaskStatus
+
+func (ts Tasks) AllShutdown() bool {
+	for _, t := range ts {
+		if !t.Shutdown() {
+			return false
+		}
+	}
+	return true
+}
