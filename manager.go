@@ -356,6 +356,7 @@ func (m *Manager) CreateSwarm(vms VMNodes) error {
 // missing manager or worker nodes that aren't already part of the cluster
 func (m *Manager) UpdateSwarm(vms VMNodes) error {
 	currentNodes := make(map[string]bool)
+	desiredNodes := make(map[string]bool)
 
 	nodes, err := m.GetNodes()
 	if err != nil {
@@ -364,12 +365,23 @@ func (m *Manager) UpdateSwarm(vms VMNodes) error {
 	for _, node := range nodes {
 		currentNodes[node.Hostname] = true
 	}
+	for _, vm := range vms {
+		desiredNodes[vm.Hostname] = true
+	}
 
 	var newNodes VMNodes
 
 	for _, vm := range vms {
 		if _, ok := currentNodes[vm.Hostname]; !ok {
 			newNodes = append(newNodes, vm)
+		}
+	}
+
+	var nodesToDrain []string
+
+	for node := range currentNodes {
+		if _, ok := desiredNodes[node]; !ok {
+			nodesToDrain = append(nodesToDrain, node)
 		}
 	}
 
@@ -436,6 +448,12 @@ func (m *Manager) UpdateSwarm(vms VMNodes) error {
 		if err := m.labelNode(newWorker); err != nil {
 			return fmt.Errorf("error labelling worker: %w", err)
 		}
+	}
+
+	// Remove old nodes
+	if err := m.DrainNodes(nodesToDrain); err != nil {
+		log.WithError(err).Error("error ddraining old nodes")
+		return fmt.Errorf("error draining old nodes: %w", err)
 	}
 
 	if err := m.SwitchNode(manager.PublicAddress); err != nil {
