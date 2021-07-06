@@ -8,7 +8,7 @@ import (
 	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
 )
 
-func Create(m *swarm.Manager, args []string) int {
+func Create(m *swarm.Manager, args []string, force bool) int {
 	var (
 		f   io.ReadCloser
 		err error
@@ -39,7 +39,7 @@ func Create(m *swarm.Manager, args []string) int {
 		return StatusError
 	}
 
-	if err := m.CreateSwarm(cf.Nodes); err != nil {
+	if err := m.CreateSwarm(cf.Nodes, force); err != nil {
 		fmt.Fprintf(os.Stderr, "error creating swarm cluster: %s\n", err)
 		return StatusError
 	}

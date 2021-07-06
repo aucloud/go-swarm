@@ -2,11 +2,19 @@ package main
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm/internal"
 )
 
 func init() {
+	createCmd.Flags().BoolP(
+		"force-single-manager-cluster", "-f", false,
+		"Force creation of single-mnager-node clusters",
+	)
+	viper.BindPFlag("force-single-manager-cluster", createCmd.Flags().Lookup("force"))
+	viper.SetDefault("force-single-manager-cluster", false)
+
 	RootCmd.AddCommand(createCmd)
 }
 
@@ -21,6 +29,7 @@ along with their public and private ip address. Each node must also have a set
 of labels that are used to assign nodes as managers and others as workers.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		internal.Create(manager, args)
+		force := viper.GetBool("force-single-manager-cluster")
+		internal.Create(manager, args, force)
 	},
 }

@@ -260,9 +260,9 @@ func (m *Manager) GetNodes() ([]NodeStatus, error) {
 }
 
 // CreateSwarm creates a new Docker Swarm cluster given a set of nodes
-func (m *Manager) CreateSwarm(vms VMNodes) error {
+func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 	managers := vms.FilterByTag(RoleTag, ManagerRole)
-	if !(len(managers) == 3 || len(managers) == 5) {
+	if !force && !(len(managers) == 3 || len(managers) == 5) {
 		return fmt.Errorf("error expected 3 or 5 managers but got %d", len(managers))
 	}
 
