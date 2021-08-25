@@ -264,7 +264,7 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 	managers := vms.FilterByTag(RoleTag, ManagerRole)
 
 	if force {
-		log.Warn("forcing creation of single manager cluster!")
+		log.Warnf("skipping manager validation and forcing creation of cluster with %d managers", len(managers))
 	} else {
 		if !(len(managers) == 3 || len(managers) == 5) {
 			return fmt.Errorf("error expected 3 or 5 managers but got %d", len(managers))
