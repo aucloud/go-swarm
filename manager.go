@@ -96,7 +96,10 @@ func (m *Manager) runCmd(cmd string, args ...string) (io.Reader, error) {
 			WithField("stdout", string(stdout.String())).
 			WithField("stderr", string(stderr.String())).
 			Error("error running worker")
-		return nil, fmt.Errorf("error running worker: %s", err)
+		return nil, fmt.Errorf(
+			"error running worker: %w (stderr=%q stdout=%q)",
+			err, stderr.String(), stdout.String(),
+		)
 	}
 
 	return stdout, nil
@@ -146,7 +149,7 @@ func (m *Manager) joinSwarm(newNode VMNode, managerNode VMNode, token string) er
 	return nil
 }
 
-func (m *Manager) labelNode(node VMNode) error {
+func (m *Manager) LabelNode(node VMNode) error {
 	if err := m.SwitchNode(node.PublicAddress); err != nil {
 		return fmt.Errorf("error switching nodes to %s: %w", node.PublicAddress, err)
 	}
@@ -175,6 +178,10 @@ func (m *Manager) labelNode(node VMNode) error {
 			label += fmt.Sprintf("=%s", strings.Join(values, ","))
 		}
 		labelOptions = append(labelOptions, fmt.Sprintf(labelAdd, label))
+	}
+
+	if err := m.ensureManager(); err != nil {
+		return fmt.Errorf("error connecting to manager node: %w", err)
 	}
 
 	cmd := fmt.Sprintf(
@@ -296,7 +303,7 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 	if _, err := m.runCmd(cmd); err != nil {
 		return fmt.Errorf("error running init command: %w", err)
 	}
-	if err := m.labelNode(manager); err != nil {
+	if err := m.LabelNode(manager); err != nil {
 		return fmt.Errorf("error labelling worker: %w", err)
 	}
 
@@ -331,7 +338,7 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 				clusterID, err,
 			)
 		}
-		if err := m.labelNode(newManager); err != nil {
+		if err := m.LabelNode(newManager); err != nil {
 			return fmt.Errorf("error labelling manager: %w", err)
 		}
 	}
@@ -345,7 +352,7 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 				clusterID, err,
 			)
 		}
-		if err := m.labelNode(worker); err != nil {
+		if err := m.LabelNode(worker); err != nil {
 			return fmt.Errorf("error labelling worker: %w", err)
 		}
 	}
@@ -436,7 +443,7 @@ func (m *Manager) UpdateSwarm(vms VMNodes) error {
 				clusterID, err,
 			)
 		}
-		if err := m.labelNode(newManager); err != nil {
+		if err := m.LabelNode(newManager); err != nil {
 			return fmt.Errorf("error labelling manager: %w", err)
 		}
 	}
@@ -450,7 +457,7 @@ func (m *Manager) UpdateSwarm(vms VMNodes) error {
 				clusterID, err,
 			)
 		}
-		if err := m.labelNode(newWorker); err != nil {
+		if err := m.LabelNode(newWorker); err != nil {
 			return fmt.Errorf("error labelling worker: %w", err)
 		}
 	}
