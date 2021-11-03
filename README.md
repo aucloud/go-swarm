@@ -1,5 +1,7 @@
 # swarm
 
+[![Go](https://github.com/aucloud/go-swarm/actions/workflows/go.yml/badge.svg)](https://github.com/aucloud/go-swarm/actions/workflows/go.yml)
+
 `swarm` is first and foremost a Go library written to help provision and manage
 Docker Swarm Clusters. Currently it does the following things:
 
