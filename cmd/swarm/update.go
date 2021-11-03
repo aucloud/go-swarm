@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm/internal"
+	"github.com/aucloud/go-swarm/internal"
 )
 
 func init() {

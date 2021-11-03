@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
-	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm/internal"
+	"github.com/aucloud/go-swarm"
+	"github.com/aucloud/go-swarm/internal"
 )
 
 var (

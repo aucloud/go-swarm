@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
+	"github.com/aucloud/go-swarm"
 )
 
 func Update(m *swarm.Manager, args []string) int {

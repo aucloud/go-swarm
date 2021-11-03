@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
+	"github.com/aucloud/go-swarm"
 )
 
 func Status(m *swarm.Manager, args []string) int {

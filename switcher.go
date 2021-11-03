@@ -6,8 +6,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/aucloud/go-runcmd"
 	log "github.com/sirupsen/logrus"
-	"gitlab.mgt.aom.australiacloud.com.au/aom/golib/runcmd"
 )
 
 // Switcher is the interface that describes how to switch between Docker Nodes

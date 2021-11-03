@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm"
+	"github.com/aucloud/go-swarm"
 )
 
 func Drain(m *swarm.Manager, args []string) int {

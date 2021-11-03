@@ -4,12 +4,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"gitlab.mgt.aom.australiacloud.com.au/aom/swarm/internal"
+	"github.com/aucloud/go-swarm/internal"
 )
 
 func init() {
 	createCmd.Flags().BoolP(
-		"force-single-manager-cluster", "-f", false,
+		"force-single-manager-cluster", "f", false,
 		"Force creation of single-mnager-node clusters",
 	)
 	viper.BindPFlag("force-single-manager-cluster", createCmd.Flags().Lookup("force"))

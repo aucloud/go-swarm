@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prologic/jsonlines"
 	log "github.com/sirupsen/logrus"
+	"go.mills.io/jsonlines"
 
-	"gitlab.mgt.aom.australiacloud.com.au/aom/golib/runcmd"
+	"github.com/aucloud/go-runcmd"
 )
 
 const (
