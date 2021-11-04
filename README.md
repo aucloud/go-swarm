@@ -7,13 +7,13 @@ and maintenance of Docker Swarm cluster.
 
 Features:
 
-- Creates new Swarm Cluters given a `Clusterfile` as input.
+- Creates new Swarm Cluster given a Terraform `Clusterfile` as input.
 - Retrives information about Swarm Clsuters.
 - Join new workers or managers to an existing Swarm Cluster.
 - Assigning Swarm Labels based on underlying VM Node labels.
-- Add-hoc adding new worker or manager nodes
-- Draining Swarm nodes
-- Removing Swarm ndoes
+- Add-hoc adding new worker or manager nodes.
+- Draining Swarm nodes.
+- Removing Swarm ndoes.
 
 ## Install
 
