@@ -1,27 +1,26 @@
-# swarm
+# go-swarm
 
 [![Go](https://github.com/aucloud/go-swarm/actions/workflows/go.yml/badge.svg)](https://github.com/aucloud/go-swarm/actions/workflows/go.yml)
 
-`swarm` is first and foremost a Go library written to help provision and manage
-Docker Swarm Clusters. Currently it does the following things:
+`go-swarm` is a Go library and ccommand-line tool for managing the creation
+and maintenance of Docker Swarm cluster.
+
+Features:
 
 - Creates new Swarm Cluters given a `Clusterfile` as input.
 - Retrives information about Swarm Clsuters.
 - Join new workers or managers to an existing Swarm Cluster.
-
-Future immediate and long-term goals for this library and tools include:
-
 - Assigning Swarm Labels based on underlying VM Node labels.
 - Add-hoc adding new worker or manager nodes
 - Draining Swarm nodes
-- Revmoging Swarm ndoes
+- Removing Swarm ndoes
 
 ## Install
 
 Currently tehre is a command-line tool called `swarm` that can be installed with:
 
 ```#!console
-go get -u gitlab.mgt.aom.australiacloud.com.au/aom/swarm/cmd/swarm/...
+go install github.com/aucloud/cmd/swarm@latest
 ```
 
 Using as a library is to be documented at a later date.
@@ -75,3 +74,8 @@ terraform output -json Clusterfile | swarm -D create -
 This will take the `Clusterfile` (_a JSON representing the VM Nodes created via Terraform_)
 and create a multi-manager Swarm Cluster and join all worker nodes and display the
 cluster status at the end.
+
+
+## License
+
+`go-swarm` is licsned under the terms of the [AGPLv3](/LICENSE)
