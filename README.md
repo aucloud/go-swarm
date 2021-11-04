@@ -65,7 +65,7 @@ Flags:
 Use "swarm [command] --help" for more information about a command.
 ```
 
-For example to create a new Swarm clsuter from a Terraform run:
+For example to create a new Swarm cluster from a Terraform run:
 
 ```#!console
 terraform output -json Clusterfile | swarm -D create -
@@ -75,7 +75,24 @@ This will take the `Clusterfile` (_a JSON representing the VM Nodes created via 
 and create a multi-manager Swarm Cluster and join all worker nodes and display the
 cluster status at the end.
 
+```#!console
+cat Clusterfile.json
+{
+  "region": "local",
+  "environment": "test",
+  "cluster": "c1",
+  "domain": "localdomain",
+  "nodes": [{
+    "hostname": "dm1",
+    "public_address": "10.0.0.1",
+    "private_address": "172.16.0.1",
+    "tags": {
+      "role": "manager"
+    }
+  }]
+}
+```
 
 ## License
 
-`go-swarm` is licsned under the terms of the [AGPLv3](/LICENSE)
+`go-swarm` is licensed under the terms of the [AGPLv3](/LICENSE)
