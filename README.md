@@ -2,7 +2,7 @@
 
 [![Go](https://github.com/aucloud/go-swarm/actions/workflows/go.yml/badge.svg)](https://github.com/aucloud/go-swarm/actions/workflows/go.yml)
 
-`go-swarm` is a Go library and ccommand-line tool for managing the creation
+`go-swarm` is a Go library and command-line tool for managing the creation
 and maintenance of Docker Swarm cluster.
 
 Features:
