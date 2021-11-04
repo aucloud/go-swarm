@@ -34,8 +34,8 @@ Using the `swarm` CLI tool is easy:
 $ ./swarm
 This is a command-line Docker Swarm Manager
 
-This tool is an implemtnation of the swarm management library used to help
-facilitate and automation the creation and management of Docker Swarm Clusters.
+This tool is an implementation of the swarm management library used to help
+facilitate and automate the creation and management of Docker Swarm Clusters.
 
 Supported functions include:
 
@@ -72,6 +72,6 @@ For example to create a new Swarm clsuter from a Terraform run:
 terraform output -json Clusterfile | swarm -D create -
 ```
 
-This will take the `Clusterfile` (_a JSON representing the VM Nodes creates via Terraform_)
+This will take the `Clusterfile` (_a JSON representing the VM Nodes created via Terraform_)
 and create a multi-manager Swarm Cluster and join all worker nodes and display the
 cluster status at the end.
