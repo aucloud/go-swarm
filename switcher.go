@@ -21,10 +21,12 @@
 package swarm
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/aucloud/go-runcmd"
 	log "github.com/sirupsen/logrus"
@@ -35,16 +37,16 @@ import (
 // appropriate `runcmd.Runner` interface type for operating on Docker Nodes.
 type Switcher interface {
 	fmt.Stringer
-	Switch(nodeAddr string) error
+	Switch(ctx context.Context, nodeAddr string) error
 	Runner() runcmd.Runner
 }
 
 type nullSwitcher struct{}
 
-func NewNullSwitcher() (Switcher, error)         { return &nullSwitcher{}, nil }
-func (s *nullSwitcher) String() string           { return "" }
-func (s *nullSwitcher) Switch(addr string) error { return nil }
-func (s *nullSwitcher) Runner() runcmd.Runner    { return nil }
+func NewNullSwitcher() (Switcher, error)                              { return &nullSwitcher{}, nil }
+func (s *nullSwitcher) String() string                                { return "" }
+func (s *nullSwitcher) Switch(ctx context.Context, addr string) error { return nil }
+func (s *nullSwitcher) Runner() runcmd.Runner                         { return nil }
 
 type localSwitcher struct {
 	sync.RWMutex
@@ -67,7 +69,7 @@ func (s *localSwitcher) Runner() runcmd.Runner {
 	return s.runner
 }
 
-func (s *localSwitcher) Switch(host string) error {
+func (s *localSwitcher) Switch(ctx context.Context, host string) error {
 	runner, err := runcmd.NewLocalRunner()
 	if err != nil {
 		log.WithError(err).Error("error creating local runner")
@@ -92,7 +94,7 @@ type sshSwitcher struct {
 
 // NewSSHSwitcher constructs a new Switcher that connect to remote Docker nodes'
 // UNIX Sockets over SSH
-func NewSSHSwitcher(user, addr, key string) (Switcher, error) {
+func NewSSHSwitcher(user, addr, key string, timeout time.Duration) (Switcher, error) {
 	key = os.ExpandEnv(key)
 
 	s := &sshSwitcher{
@@ -102,7 +104,9 @@ func NewSSHSwitcher(user, addr, key string) (Switcher, error) {
 	}
 
 	if addr != "" {
-		if err := s.Switch(addr); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		if err := s.Switch(ctx, addr); err != nil {
 			return nil, err
 		}
 	}
@@ -120,7 +124,7 @@ func (s *sshSwitcher) Runner() runcmd.Runner {
 	return s.runner
 }
 
-func (s *sshSwitcher) Switch(nodeAddr string) error {
+func (s *sshSwitcher) Switch(ctx context.Context, nodeAddr string) error {
 	_, port, err := net.SplitHostPort(s.addr)
 	if err != nil {
 		if addrError, ok := err.(*net.AddrError); ok && addrError.Err == "missing port in address" {
@@ -135,7 +139,7 @@ func (s *sshSwitcher) Switch(nodeAddr string) error {
 
 	addr := fmt.Sprintf("%s:%s", nodeAddr, port)
 
-	runner, err := runcmd.NewRemoteKeyAuthRunner(s.user, addr, s.key)
+	runner, err := runcmd.NewRemoteKeyAuthRunner(ctx, s.user, addr, s.key)
 	if err != nil {
 		return fmt.Errorf("error creating remote runner: %w", err)
 	}

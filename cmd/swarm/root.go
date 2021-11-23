@@ -21,9 +21,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
@@ -74,23 +76,27 @@ Supported functions include:
 				fmt.Fprintf(os.Stderr, "error creating local switcher: %s\n", err)
 				os.Exit(-1)
 			}
-			if localSwitcher.Switch(""); err != nil {
+			if localSwitcher.Switch(context.Background(), ""); err != nil {
 				fmt.Fprintf(os.Stderr, "error switching to local node: %s\n", err)
 				os.Exit(-1)
 			}
 
 			switcher = localSwitcher
 		} else {
+			timeout := viper.GetDuration("ssh-timeout")
 			user := viper.GetString("ssh-user")
 			addr := viper.GetString("ssh-addr")
 			key := viper.GetString("ssh-key")
 
-			sshSwitcher, err := swarm.NewSSHSwitcher(user, addr, key)
+			sshSwitcher, err := swarm.NewSSHSwitcher(user, addr, key, timeout)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error creating ssh switcher: %s\n", err)
 				os.Exit(-1)
 			}
-			if sshSwitcher.Switch(addr); err != nil {
+
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			if sshSwitcher.Switch(ctx, addr); err != nil {
 				fmt.Fprintf(os.Stderr, "error switching to remote node %s: %s\n", addr, err)
 				os.Exit(-1)
 			}
@@ -131,6 +137,11 @@ func init() {
 	RootCmd.PersistentFlags().BoolP(
 		"use-local", "L", false,
 		"Use local socket (connects directly to Docker UNIX socket)",
+	)
+
+	RootCmd.PersistentFlags().DurationP(
+		"ssh-timeout", "T", time.Minute*5,
+		"Timeout to use for SSH connections before giving up (retries failed connections)",
 	)
 
 	RootCmd.PersistentFlags().StringP(
