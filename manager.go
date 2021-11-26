@@ -57,16 +57,49 @@ const (
 	drainTimeout = time.Minute * 10 // 10 minutes
 )
 
+const (
+	DefaultTimeout = time.Minute * 5
+)
+
+type Config struct {
+	Timeout time.Duration
+}
+
+func NewDefaultConfig() *Config {
+	return &Config{
+		Timeout: DefaultTimeout,
+	}
+}
+
 // Manager manages all operations of a Docker Swarm cluster with flexible
 // Switcher implementations that permit talking to Docker Nodes over different
 // types of transport (e.g: local or remote).
 type Manager struct {
+	config   *Config
 	switcher Switcher
 }
 
+type Option func(*Config) error
+
+func WithTimeout(timeout time.Duration) Option {
+	return func(cfg *Config) error {
+		cfg.Timeout = timeout
+		return nil
+	}
+}
+
 // NewManager constructs a new Manager type with the provider Switcher
-func NewManager(switcher Switcher) (*Manager, error) {
-	return &Manager{switcher: switcher}, nil
+func NewManager(switcher Switcher, options ...Option) (*Manager, error) {
+	m := &Manager{switcher: switcher, config: NewDefaultConfig()}
+
+	for _, opt := range options {
+		if err := opt(m.config); err != nil {
+			log.WithError(err).Error("error configuring swarm manager")
+			return nil, err
+		}
+	}
+
+	return m, nil
 }
 
 // Switcher returns the current Switcher for the manager being used
@@ -81,7 +114,9 @@ func (m *Manager) Runner() runcmd.Runner {
 
 // SwitchNode switches to a new node given by nodeAddr to perform operations on
 func (m *Manager) SwitchNode(nodeAddr string) error {
-	if err := m.Switcher().Switch(nodeAddr); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), m.config.Timeout)
+	defer cancel()
+	if err := m.Switcher().Switch(ctx, nodeAddr); err != nil {
 		log.WithError(err).Errorf("error switching to node %s", nodeAddr)
 		return fmt.Errorf("error switching to node %s: %s", nodeAddr, err)
 	}
@@ -529,7 +564,7 @@ func (m *Manager) drainNode(node string) error {
 	for {
 		select {
 		case <-ticker.C:
-			elapsed := time.Now().Sub(startedAt)
+			elapsed := time.Since(startedAt)
 
 			tasks, err := m.getTasks(node)
 			if err != nil {
@@ -544,7 +579,7 @@ func (m *Manager) drainNode(node string) error {
 
 			log.Infof("Still waiting for %s to drain after %s ...", node, elapsed)
 		case <-ctx.Done():
-			elapsed := time.Now().Sub(startedAt)
+			elapsed := time.Since(startedAt)
 			log.Errorf("timed out waiting for %s to drain after %s", node, elapsed)
 			return fmt.Errorf("error timed out waiting for %s to drain after %s", node, elapsed)
 		}

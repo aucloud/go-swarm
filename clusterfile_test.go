@@ -55,7 +55,7 @@ func TestReadClusterfile(t *testing.T) {
 		Cluster:     "c1",
 		Domain:      "localdomain",
 		Nodes: []VMNode{
-			VMNode{
+			{
 				Hostname:       "dm1",
 				PublicAddress:  "10.0.0.1",
 				PrivateAddress: "172.16.0.1",
