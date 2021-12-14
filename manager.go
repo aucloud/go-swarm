@@ -359,7 +359,7 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 		return fmt.Errorf("error running init command: %w", err)
 	}
 	if err := m.LabelNode(manager); err != nil {
-		return fmt.Errorf("error labelling worker: %w", err)
+		return fmt.Errorf("error labelling manager: %w", err)
 	}
 
 	// Refresh node and get new Swarm Clsuter ID
