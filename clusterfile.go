@@ -79,6 +79,30 @@ func (vms VMNodes) FilterByTag(name, value string) VMNodes {
 	return res
 }
 
+func (vms VMNodes) FilterByPrivateAddress(address string) VMNodes {
+	var res VMNodes
+
+	for _, vm := range vms {
+		if vm.PrivateAddress == address {
+			res = append(res, vm)
+		}
+	}
+
+	return res
+}
+
+func (vms VMNodes) FilterByPublicAddress(address string) VMNodes {
+	var res VMNodes
+
+	for _, vm := range vms {
+		if vm.PublicAddress == address {
+			res = append(res, vm)
+		}
+	}
+
+	return res
+}
+
 // Clusterfile represents a set of VMNode(s) as a collection of VM(s)
 // along with the region, enviornment, cluster and domain those nodes
 // belong to.
@@ -88,7 +112,7 @@ type Clusterfile struct {
 	Cluster     string `json:"cluster"`
 	Domain      string `json:"domain"`
 
-	Nodes []VMNode `json:"nodes"`
+	Nodes VMNodes `json:"nodes"`
 }
 
 func (cf *Clusterfile) Validate() error {
