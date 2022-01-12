@@ -38,15 +38,17 @@ import (
 type Switcher interface {
 	fmt.Stringer
 	Switch(ctx context.Context, nodeAddr string) error
+	SwitchVia(ctx context.Context, nodeAddr string) error
 	Runner() runcmd.Runner
 }
 
 type nullSwitcher struct{}
 
-func NewNullSwitcher() (Switcher, error)                              { return &nullSwitcher{}, nil }
-func (s *nullSwitcher) String() string                                { return "" }
-func (s *nullSwitcher) Switch(ctx context.Context, addr string) error { return nil }
-func (s *nullSwitcher) Runner() runcmd.Runner                         { return nil }
+func NewNullSwitcher() (Switcher, error)                                 { return &nullSwitcher{}, nil }
+func (s *nullSwitcher) String() string                                   { return "" }
+func (s *nullSwitcher) Switch(ctx context.Context, addr string) error    { return nil }
+func (s *nullSwitcher) SwitchVia(ctx context.Context, addr string) error { return nil }
+func (s *nullSwitcher) Runner() runcmd.Runner                            { return nil }
 
 type localSwitcher struct {
 	sync.RWMutex
@@ -83,12 +85,17 @@ func (s *localSwitcher) Switch(ctx context.Context, host string) error {
 	return nil
 }
 
+func (s *localSwitcher) SwitchVia(ctx context.Context, host string) error {
+	return s.Switch(ctx, host)
+}
+
 type sshSwitcher struct {
 	sync.RWMutex
 	runner runcmd.Runner
 
 	user string
 	addr string
+	jump string
 	key  string
 }
 
@@ -145,6 +152,35 @@ func (s *sshSwitcher) Switch(ctx context.Context, nodeAddr string) error {
 	}
 
 	s.Lock()
+	s.addr = addr
+	s.runner = runner
+	s.Unlock()
+
+	return nil
+}
+
+func (s *sshSwitcher) SwitchVia(ctx context.Context, nodeAddr string) error {
+	_, port, err := net.SplitHostPort(s.addr)
+	if err != nil {
+		if addrError, ok := err.(*net.AddrError); ok && addrError.Err == "missing port in address" {
+			port = "22"
+		} else {
+			return fmt.Errorf("error parsing addr: %w", err)
+		}
+	}
+	if port == "" {
+		port = "22"
+	}
+
+	addr := fmt.Sprintf("%s:%s", nodeAddr, port)
+
+	runner, err := runcmd.NewRemoteKeyAuthRunnerViaJumphost(ctx, s.user, addr, s.addr, s.key)
+	if err != nil {
+		return fmt.Errorf("error creating remote runner: %w", err)
+	}
+
+	s.Lock()
+	s.jump = s.addr
 	s.addr = addr
 	s.runner = runner
 	s.Unlock()

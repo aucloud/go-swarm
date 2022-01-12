@@ -124,6 +124,19 @@ func (m *Manager) SwitchNode(nodeAddr string) error {
 	return nil
 }
 
+// SwitchNodeVia switches to a new node given by nodeAddr by jumping through
+// the current node as a "bastion" host to perform operations on the node.
+func (m *Manager) SwitchNodeVia(nodeAddr string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), m.config.Timeout)
+	defer cancel()
+	if err := m.Switcher().SwitchVia(ctx, nodeAddr); err != nil {
+		log.WithError(err).Errorf("error switching to node %s via %s", nodeAddr, m.Switcher())
+		return fmt.Errorf("error switching to node %s via %s: %s", nodeAddr, m.Switcher(), err)
+	}
+
+	return nil
+}
+
 func (m *Manager) runCmd(cmd string, args ...string) (io.Reader, error) {
 	if m.Runner() == nil {
 		return nil, fmt.Errorf("error no runner configured")
@@ -172,7 +185,7 @@ func (m *Manager) ensureManager() error {
 				log.WithError(err).Warn("error parsing remote manager address (trying next manager): %w", err)
 				continue
 			}
-			if err := m.SwitchNode(host); err != nil {
+			if err := m.SwitchNodeVia(host); err != nil {
 				log.WithError(err).Warn("error switch to remote manager (trying next manager): %w", err)
 				continue
 			}
@@ -359,7 +372,7 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 		return fmt.Errorf("error running init command: %w", err)
 	}
 	if err := m.LabelNode(manager); err != nil {
-		return fmt.Errorf("error labelling worker: %w", err)
+		return fmt.Errorf("error labelling manager: %w", err)
 	}
 
 	// Refresh node and get new Swarm Clsuter ID

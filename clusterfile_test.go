@@ -27,12 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestReadClusterfile tests the `ReadClusterfiel` function that reads and
-// parses a valid `Clusterfile` or `Clusterfile.json`.
-func TestReadClusterfile(t *testing.T) {
-	assert := assert.New(t)
-
-	clusterfile := `{
+const testClusterfile = `{
   "region": "local",
   "environment": "test",
   "cluster": "c1",
@@ -44,17 +39,30 @@ func TestReadClusterfile(t *testing.T) {
     "tags": {
 	  "role": "manager"
 	}
+  }, {
+    "hostname": "dw1",
+    "public_address": "10.0.0.2",
+    "private_address": "172.16.0.2",
+    "tags": {
+	  "role": "worker"
+	}
   }]
 }
 `
-	actual, err := ReadClusterfile(bytes.NewBufferString(clusterfile))
+
+// TestReadClusterfile tests the `ReadClusterfiel` function that reads and
+// parses a valid `Clusterfile` or `Clusterfile.json`.
+func TestReadClusterfile(t *testing.T) {
+	assert := assert.New(t)
+
+	actual, err := ReadClusterfile(bytes.NewBufferString(testClusterfile))
 	assert.Nil(err)
 	expected := Clusterfile{
 		Region:      "local",
 		Environment: "test",
 		Cluster:     "c1",
 		Domain:      "localdomain",
-		Nodes: []VMNode{
+		Nodes: VMNodes{
 			{
 				Hostname:       "dm1",
 				PublicAddress:  "10.0.0.1",
@@ -63,7 +71,54 @@ func TestReadClusterfile(t *testing.T) {
 					"role": "manager",
 				},
 			},
+			{
+				Hostname:       "dw1",
+				PublicAddress:  "10.0.0.2",
+				PrivateAddress: "172.16.0.2",
+				Tags: map[string]string{
+					"role": "worker",
+				},
+			},
 		},
 	}
 	assert.Equal(expected, actual)
+}
+
+// TestFilterByTags tests the `VMNodes.FilterByTags()` functionality to ensure
+// we can filter a list of nodes by tag/value pairs.
+func TestFilterByTags(t *testing.T) {
+	assert := assert.New(t)
+
+	cf, err := ReadClusterfile(bytes.NewBufferString(testClusterfile))
+	assert.Nil(err)
+
+	vms := cf.Nodes.FilterByTag("role", "manager")
+	assert.Len(vms, 1)
+	assert.Equal(vms[0].Hostname, "dm1")
+}
+
+// TestFilterByPrivateAddress tests the `VMNodes.FilterByPrivateAddress()`
+// functionality to ensure we can filter a list of nodes by private address.
+func TestFilterByPrivateAddress(t *testing.T) {
+	assert := assert.New(t)
+
+	cf, err := ReadClusterfile(bytes.NewBufferString(testClusterfile))
+	assert.Nil(err)
+
+	vms := cf.Nodes.FilterByPrivateAddress("172.16.0.2")
+	assert.Len(vms, 1)
+	assert.Equal(vms[0].Hostname, "dw1")
+}
+
+// TestFilterByPublicAddress tests the `VMNodes.FilterByPublicAddress()`
+// functionality to ensure we can filter a list of nodes by public address.
+func TestFilterByPublicAddress(t *testing.T) {
+	assert := assert.New(t)
+
+	cf, err := ReadClusterfile(bytes.NewBufferString(testClusterfile))
+	assert.Nil(err)
+
+	vms := cf.Nodes.FilterByPublicAddress("10.0.0.1")
+	assert.Len(vms, 1)
+	assert.Equal(vms[0].Hostname, "dm1")
 }
