@@ -56,6 +56,13 @@ type VMNode struct {
 	Tags           map[string]string `json:"tags"`
 }
 
+func (vm VMNode) Stirng() string {
+	return fmt.Sprintf(
+		"VMNode{Hostname: %q, PublicAddress: %q}",
+		vm.Hostname, vm.PublicAddress,
+	)
+}
+
 func (vm VMNode) GetTag(name string) string {
 	return vm.Tags[name]
 }
