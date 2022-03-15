@@ -186,7 +186,7 @@ func (m *Manager) ensureManager() error {
 				continue
 			}
 			if err := m.SwitchNodeVia(host); err != nil {
-				log.WithError(err).Warn("error switch to remote manager (trying next manager): %w", err)
+				log.WithError(err).Warn("error switching to remote manager (trying next manager): %w", err)
 				continue
 			}
 			return nil
@@ -219,12 +219,12 @@ func (m *Manager) joinSwarm(newNode VMNode, managerNode VMNode, token string) er
 
 func (m *Manager) LabelNode(node VMNode) error {
 	if err := m.SwitchNode(node.PublicAddress); err != nil {
-		return fmt.Errorf("error switching nodes to %s: %w", node.PublicAddress, err)
+		return fmt.Errorf("error switching nodes to %s: %w", node, err)
 	}
 
 	info, err := m.GetInfo()
 	if err != nil {
-		return fmt.Errorf("error getting node info from: %w", err)
+		return fmt.Errorf("error getting node info: %w", err)
 	}
 
 	labelOptions := []string{}
@@ -371,9 +371,6 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 	if _, err := m.runCmd(cmd); err != nil {
 		return fmt.Errorf("error running init command: %w", err)
 	}
-	if err := m.LabelNode(manager); err != nil {
-		return fmt.Errorf("error labelling manager: %w", err)
-	}
 
 	// Refresh node and get new Swarm Clsuter ID
 	node, err = m.GetInfo()
@@ -406,9 +403,6 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 				clusterID, err,
 			)
 		}
-		if err := m.LabelNode(newManager); err != nil {
-			return fmt.Errorf("error labelling manager: %w", err)
-		}
 	}
 
 	// Join workers
@@ -420,8 +414,17 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 				clusterID, err,
 			)
 		}
-		if err := m.LabelNode(worker); err != nil {
-			return fmt.Errorf("error labelling worker: %w", err)
+	}
+
+	if err := m.SwitchNode(manager.PublicAddress); err != nil {
+		return fmt.Errorf("error switching to manager node: %w", err)
+	}
+
+	// Label nodes
+	for _, vm := range vms {
+		log.Debugf("labellig node %s with tags=%v", vm.Tags)
+		if err := m.LabelNode(vm); err != nil {
+			return fmt.Errorf("error labelling node %s: %w", vm, err)
 		}
 	}
 
