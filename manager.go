@@ -422,7 +422,6 @@ func (m *Manager) CreateSwarm(vms VMNodes, force bool) error {
 
 	// Label nodes
 	for _, vm := range vms {
-		log.Debugf("labellig node %s with tags=%v", vm.Tags)
 		if err := m.LabelNode(vm); err != nil {
 			return fmt.Errorf("error labelling node %s: %w", vm, err)
 		}
