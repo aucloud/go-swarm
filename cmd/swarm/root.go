@@ -87,8 +87,16 @@ Supported functions include:
 			user := viper.GetString("ssh-user")
 			addr := viper.GetString("ssh-addr")
 			key := viper.GetString("ssh-key")
+			useAgent := viper.GetBool("use-ssh-agent")
 
-			sshSwitcher, err := swarm.NewSSHSwitcher(user, addr, key, timeout)
+			var sshAuth swarm.SSHRunnerAuth
+			if useAgent {
+				sshAuth = swarm.NewAgentSSHRunnerAuth(os.Getenv("SSH_AUTH_SOCK"))
+			} else {
+				sshAuth = swarm.NewKeySSHRunnerAuth(key)
+			}
+
+			sshSwitcher, err := swarm.NewSSHSwitcher(user, addr, sshAuth, timeout)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error creating ssh switcher: %s\n", err)
 				os.Exit(-1)

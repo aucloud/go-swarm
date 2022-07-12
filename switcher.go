@@ -119,7 +119,7 @@ func (s *agentRunnerAuth) createRunner(ctx context.Context, user, addr string) (
 }
 
 func (s *agentRunnerAuth) createRunnerVia(ctx context.Context, user, addr, jumphost string) (*runcmd.Remote, error) {
-	return nil, fmt.Errorf("Agent authentication is not supported for jump hosts")
+	return nil, fmt.Errorf("agent authentication is not supported for jump hosts")
 }
 
 type sshSwitcher struct {
