@@ -38,3 +38,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
+
+replace github.com/aucloud/go-runcmd => github.com/dnachev/go-runcmd v0.0.0-20220712061459-9ce06155c453

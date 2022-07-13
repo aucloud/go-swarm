@@ -89,25 +89,64 @@ func (s *localSwitcher) SwitchVia(ctx context.Context, host string) error {
 	return s.Switch(ctx, host)
 }
 
+type SSHRunnerAuth interface {
+	createRunner(context.Context, string, string) (*runcmd.Remote, error)
+	createRunnerVia(context.Context, string, string, string) (*runcmd.Remote, error)
+}
+
+type keyRunnerAuth struct {
+	key string
+}
+
+func (s keyRunnerAuth) createRunner(ctx context.Context, user, addr string) (*runcmd.Remote, error) {
+	key := os.ExpandEnv(s.key)
+
+	return runcmd.NewRemoteKeyAuthRunner(ctx, user, addr, key)
+}
+
+func (s keyRunnerAuth) createRunnerVia(ctx context.Context, user, addr, jumphost string) (*runcmd.Remote, error) {
+	key := os.ExpandEnv(s.key)
+
+	return runcmd.NewRemoteKeyAuthRunnerViaJumphost(ctx, user, addr, jumphost, key)
+}
+
+type agentRunnerAuth struct {
+	agentSock string
+}
+
+func (s *agentRunnerAuth) createRunner(ctx context.Context, user, addr string) (*runcmd.Remote, error) {
+	return runcmd.NewRemoteAgentAuthRunner(ctx, user, addr, s.agentSock)
+}
+
+func (s *agentRunnerAuth) createRunnerVia(ctx context.Context, user, addr, jumphost string) (*runcmd.Remote, error) {
+	return nil, fmt.Errorf("agent authentication is not supported for jump hosts")
+}
+
 type sshSwitcher struct {
 	sync.RWMutex
 	runner runcmd.Runner
 
 	user string
 	addr string
+	auth SSHRunnerAuth
 	jump string
-	key  string
+}
+
+func NewKeySSHRunnerAuth(key string) SSHRunnerAuth {
+	return &keyRunnerAuth{key}
+}
+
+func NewAgentSSHRunnerAuth(agentSock string) SSHRunnerAuth {
+	return &agentRunnerAuth{agentSock}
 }
 
 // NewSSHSwitcher constructs a new Switcher that connect to remote Docker nodes'
 // UNIX Sockets over SSH
-func NewSSHSwitcher(user, addr, key string, timeout time.Duration) (Switcher, error) {
-	key = os.ExpandEnv(key)
-
+func NewSSHSwitcher(user, addr string, auth SSHRunnerAuth, timeout time.Duration) (Switcher, error) {
 	s := &sshSwitcher{
 		user: user,
 		addr: addr,
-		key:  key,
+		auth: auth,
 	}
 
 	if addr != "" {
@@ -146,7 +185,7 @@ func (s *sshSwitcher) Switch(ctx context.Context, nodeAddr string) error {
 
 	addr := fmt.Sprintf("%s:%s", nodeAddr, port)
 
-	runner, err := runcmd.NewRemoteKeyAuthRunner(ctx, s.user, addr, s.key)
+	runner, err := s.auth.createRunner(ctx, s.user, addr)
 	if err != nil {
 		return fmt.Errorf("error creating remote runner: %w", err)
 	}
@@ -174,7 +213,7 @@ func (s *sshSwitcher) SwitchVia(ctx context.Context, nodeAddr string) error {
 
 	addr := fmt.Sprintf("%s:%s", nodeAddr, port)
 
-	runner, err := runcmd.NewRemoteKeyAuthRunnerViaJumphost(ctx, s.user, addr, s.addr, s.key)
+	runner, err := s.auth.createRunnerVia(ctx, s.user, addr, s.addr)
 	if err != nil {
 		return fmt.Errorf("error creating remote runner: %w", err)
 	}
